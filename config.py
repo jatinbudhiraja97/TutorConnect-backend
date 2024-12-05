@@ -1,7 +1,13 @@
-import secrets
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Config:
-    SECRET_KEY = secrets.token_hex(24)
-    SQLALCHEMY_DATABASE_URI = 'postgresql://myuser:mypassword@localhost:5432/mydatabase'
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JWT_SECRET = "your_jwt_secret_key"
+    CORS_SUPPORTS_CREDENTIALS = True
+    CORS_RESOURCES = {r"/*": {"origins": "http://localhost:3000"}}
+    JWT_SECRET = os.getenv('JWT_SECRET')

@@ -32,8 +32,10 @@ class User(db.Model):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(50), nullable=False)  # 'student' or 'professor'
+    name = db.Column(db.String(150), nullable=False)  # Add this line to include the name field
     student = db.relationship('Student', backref='user', uselist=False)
     professor = db.relationship('Professor', backref='user', uselist=False)
+
 
 # Student Model
 class Student(db.Model):
@@ -137,25 +139,33 @@ def decode_jwt(token):
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
-    existing_user = User.query.filter_by(email=data['email']).first()
+    name = data.get('name')  # Ensure name is captured from the request
+    email = data.get('email')
+    role = data.get('role')
+    password = data.get('password')
+
+    if not name or not email or not role or not password:
+        return jsonify({"message": "Missing required fields"}), 400
+
+    existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return jsonify({"message": "User already exists!"}), 409
 
-    hashed_password = generate_password_hash(data['password'], method='pbkdf2:sha256', salt_length=16)
-    new_user = User(email=data['email'], password=hashed_password, role=data['role'])
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+    new_user = User(email=email, password=hashed_password, role=role, name=name)
     db.session.add(new_user)
     db.session.flush()  # Flush to get the user_id
 
-    if data['role'] == 'student':
-        new_student = Student(user_id=new_user.id, name=data['name'], subjects=data['subjects'])
+    if role == 'student':
+        new_student = Student(user_id=new_user.id, name=name, subjects=data.get('subjects', ''))
         db.session.add(new_student)
-    elif data['role'] == 'professor':
+    elif role == 'professor':
         new_professor = Professor(
             user_id=new_user.id, 
-            name=data['name'], 
-            department=data['department'], 
-            experience=data['experience'], 
-            subjects=data['subjects'],
+            name=name, 
+            department=data.get('department', ''), 
+            experience=data.get('experience', 0), 
+            subjects=data.get('subjects', ''),
             academics=data.get('academics', ''),
             profile_picture=data.get('profile_picture', '')
         )
@@ -163,6 +173,7 @@ def signup():
 
     db.session.commit()
     return jsonify({"message": "User created successfully!"}), 201
+
 
 # Login route
 @app.route('/login', methods=['POST'])
@@ -298,8 +309,9 @@ def search_professor():
     
     if query:
         results = Professor.query.filter(
-            Professor.subjects.ilike(f'%{query}%')
-        ).all()
+            (Professor.subjects.ilike(f'%{query}%')) |
+            (Professor.name.ilike(f'%{query}%'))
+        ).all()  # Fixed extra parenthesis here
     else:
         results = Professor.query.all()
 
@@ -312,6 +324,7 @@ def search_professor():
     } for prof in results]
     
     return jsonify(professors), 200
+
 
 # Route to list professors
 @app.route('/list_professors', methods=['GET'])
